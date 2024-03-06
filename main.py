@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 import seaborn as sn
 import locale
@@ -219,7 +220,7 @@ with col[2]:
     val = getAverageSoldItems(filtered_orders)
     st.metric(
         label="Rata-Rata Barang Terjual Per-Hari",
-        value=round(val, 1) if isinstance(val, float) else 0,
+        value= 0 if str(val) == 'nan' else round(val, 1),
     )
 
 ###########################################################################
