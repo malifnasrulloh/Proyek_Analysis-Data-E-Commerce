@@ -5,6 +5,7 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
 
 
@@ -18,8 +19,7 @@ geolocate = clean_data(pd.read_csv("geolocation_dataset.csv"))
 order_items = clean_data(pd.read_csv("order_items_dataset.csv"))
 order_payments = clean_data(pd.read_csv("order_payments_dataset.csv"))
 orders = clean_data(pd.read_csv("orders_dataset.csv"))
-product_translation = clean_data(pd.read_csv(
-    "product_category_name_translation.csv"))
+product_translation = clean_data(pd.read_csv("product_category_name_translation.csv"))
 products = clean_data(pd.read_csv("products_dataset.csv"))
 
 
@@ -104,16 +104,24 @@ def createRFM(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
     return df
 
 
-def getMostPurchasesCountries(order_df: pd.DataFrame, customer_df: pd.DataFrame):
+def getMostSellestCountries(
+    order_df: pd.DataFrame, order_items_df: pd.DataFrame, seller_df: pd.DataFrame
+):
     df = pd.merge(
         order_df[order_df.order_status != "canceled"],
-        customer_df,
+        order_items_df,
         how="inner",
-        on="customer_id",
+        on="order_id",
+    )
+    df = pd.merge(
+        df,
+        seller_df,
+        how="inner",
+        on="seller_id",
     )
     return (
-        df.groupby(by=["customer_state"])
-        .customer_state.count()
+        df.groupby(by=["seller_state"])
+        .seller_state.count()
         .sort_values(ascending=False)
     )
 
@@ -182,12 +190,10 @@ st.header("E-Commerce Report")
 st.subheader("Analisa Penjualan")
 col = st.columns(3, gap="medium")
 
-isThereAnyTransaction = True if getTotalOrder(
-    filtered_orders, False) > 0 else False
+isThereAnyTransaction = True if getTotalOrder(filtered_orders, False) > 0 else False
 
 with col[0]:
-    st.metric(label="Total Penjualan",
-              value=getTotalOrder(filtered_orders, False))
+    st.metric(label="Total Penjualan", value=getTotalOrder(filtered_orders, False))
     st.metric(
         label="Total Penjualan (Delivered Only)",
         value=getTotalOrder(filtered_orders, True),
@@ -250,8 +256,10 @@ with col[1]:
 
 st.write("Korelasi Berat Produk dengan Harga Produk")
 fig, ax = plt.subplots()
-data = getCorrelatProduct(products, order_items)["price"]
-sn.scatterplot(x=data.keys(), y=data.values())
+data = getCorrelatProduct(products, order_items)
+sn.scatterplot(x=data["product_weight_g"].values(), y=data["price"].values())
+plt.xlabel("Berat Produk (gram)")
+plt.ylabel("Harga (USD)")
 st.pyplot(fig)
 
 ###########################################################################
@@ -291,8 +299,7 @@ with st.container():
     br3 = [x + barWidth for x in br2]
     br4 = [x + barWidth for x in br3]
 
-    plt.barh(br1, boleto, color="r", height=barWidth,
-             edgecolor="grey", label="Boleto")
+    plt.barh(br1, boleto, color="r", height=barWidth, edgecolor="grey", label="Boleto")
     plt.barh(
         br2,
         credit_card,
@@ -329,24 +336,10 @@ with st.container():
 
 st.subheader("Geolocate Analysis")
 
-st.write("Negara dengan Customer terbanyak")
+data = getMostSellestCountries(orders, order_items, sellers).to_dict()
+list_state = [f"{k} ({v} Pembelian)" for k, v in data.items()]
 
-data = getMostPurchasesCountries(orders, customers).to_dict()
-
-col = st.columns([2, 1])
-with col[0]:
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    plt.scatter(data.keys(), data.values())
-    plt.xticks(rotation=90)
-    plt.xlabel("Negara")
-    plt.ylabel("Total Pembelian")
-    st.pyplot(fig)
-with col[1]:
-    for i in range(4 if len(data.keys()) >= 4 else len(data.keys())):
-        st.metric(label=list(data.keys())[i],
-                  value=f"{list(data.values())[i]}")
-
-st.write("Detail Tempat Tinggal Customer dan Tempat Penjual")
+st.write("Negara Bagian dengan Penjualan Produk Terbanyak")
 data = (
     getCorrelatBuyerSellerLocation(orders, order_items, customers, sellers)
     .groupby(by=["seller_state"])
@@ -358,13 +351,15 @@ for k, v in data.items():
     if k[0] not in temp.keys():
         temp[k[0]] = {}
     temp[k[0]][k[1]] = v
-seller_state_option = st.selectbox(label="Negara Penjual", options=temp.keys())
+
+seller_state_option = st.selectbox(label="Negara Penjual", options=list_state)
+
 if seller_state_option != None:
     with st.container():
         fig, ax = plt.subplots(nrows=1, ncols=1)
         plt.bar(
-            x=temp[seller_state_option].keys(),
-            height=temp[seller_state_option].values(),
+            x=temp[seller_state_option.split(" ")[0]].keys(),
+            height=temp[seller_state_option.split(" ")[0]].values(),
         )
         ax.set_xlabel("Negara Pembeli")
         ax.set_ylabel("Total Pembelian")
@@ -395,8 +390,7 @@ with col[1]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
     avg_frequency = round(rfm_df.frequency.mean(), 2)
     st.metric("Avg Frekuensi Pembelian", value=avg_frequency)
-    data = rfm_df.sort_values(
-        by="frequency", ascending=False).reset_index().head(10)
+    data = rfm_df.sort_values(by="frequency", ascending=False).reset_index().head(10)
     plt.bar(x=data.customer_id, height=data.frequency)
     ax.set_xlabel("Customer ID")
     ax.set_ylabel("Frequency")
@@ -407,8 +401,7 @@ with col[2]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
     avg_moneter = locale.currency(round(rfm_df.monetary.mean()), grouping=True)
     st.metric("Avg Moneter Pembelian", value=avg_moneter)
-    data = rfm_df.sort_values(
-        by="monetary", ascending=False).reset_index().head(10)
+    data = rfm_df.sort_values(by="monetary", ascending=False).reset_index().head(10)
     plt.bar(x=data.customer_id, height=data.monetary)
     ax.set_xlabel("Customer ID")
     ax.set_ylabel("Monetary")
@@ -432,8 +425,7 @@ rfm_df["RFM_Score"] = (
     + 0.57 * rfm_df["M_rank_norm"]
 )
 rfm_df["RFM_Score"] *= 0.05
-rfm_df = rfm_df.round(2).sort_values(
-    by="RFM_Score", ascending=False).reset_index()
+rfm_df = rfm_df.round(2).sort_values(by="RFM_Score", ascending=False).reset_index()
 
 st.write("Top 10 Highest RFM Score")
 st.write(rfm_df[["customer_id", "RFM_Score"]].head(10).transpose())
