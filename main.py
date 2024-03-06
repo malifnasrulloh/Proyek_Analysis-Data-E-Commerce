@@ -201,35 +201,35 @@ with col[0]:
     plt.scatter(data.keys(), data.values())
     plt.xticks(rotation=90)
     plt.xlabel("Negara")
-    plt.ylabel("Total Penbelian")
+    plt.ylabel("Total Pembelian")
     st.pyplot(fig)
 with col[1]:
-    for i in range(5):
-        st.metric(label=list(data.keys())[i], value=f"{list(data.values())[i]} Pembelian")
+    for i in range(4):
+        st.metric(label=list(data.keys())[i], value=f"{list(data.values())[i]}")
 
 
-st.write("Korelasi Tempat Tinggal Customer dan Tempat Penjual")
-
-print(getCorrelatBuyerSellerLocation(filtered_orders, filtered_orders_items,customers, sellers))
-
+st.write("Hubungan Tempat Tinggal Customer dan Tempat Penjual")
+data = getCorrelatBuyerSellerLocation(filtered_orders, filtered_orders_items,customers, sellers).groupby(by=['seller_state']).value_counts().to_dict()
+temp = {}
+for k,v in data.items():
+    if k[0] not in temp.keys():
+        temp[k[0]] = {}
+    temp[k[0]][k[1]]=v
+seller_state_option = st.selectbox(label="Negara Penjual",options=temp.keys())
+with st.container():
+    fig,ax = plt.subplots(nrows=1,ncols=1)
+    plt.bar(x=temp[seller_state_option].keys(), height=temp[seller_state_option].values())
+    ax.set_xlabel("Negara")
+    ax.set_ylabel("Total Pembelian")
+    ax.set_title("Distribusi Negara Penjual dengan Negara Pembeli")
+    plt.xticks(rotation=60)
+    st.pyplot(fig)
 
 ###########################################################################
 
 st.subheader("RFM Analysis")
 
 rfm_df = createRFM(filtered_orders, filtered_orders_items)
-
-#formula from gfg source
-# rfm_df['R_rank'] = rfm_df.recency.rank(ascending=False)
-# rfm_df['F_rank'] = rfm_df.frequency.rank(ascending=True)
-# rfm_df['M_rank'] = rfm_df.monetary.rank(ascending=True)
-
-# rfm_df['R_rank_norm'] = (rfm_df['R_rank']/rfm_df['R_rank'].max())*100
-# rfm_df['F_rank_norm'] = (rfm_df['F_rank']/rfm_df['F_rank'].max())*100
-# rfm_df['M_rank_norm'] = (rfm_df['F_rank']/rfm_df['M_rank'].max())*100
-
-# rfm_df.drop(columns=['R_rank', 'F_rank', 'M_rank'], inplace=True)
-
 
 col = st.columns(3, gap='large')
 
@@ -265,3 +265,21 @@ with col[2]:
     ax.set_ylabel("Monetary")
     ax.set_title("Monetary Distribution")
     st.pyplot(fig)
+
+#formula from gfg source
+rfm_df['R_rank'] = rfm_df.recency.rank(ascending=False)
+rfm_df['F_rank'] = rfm_df.frequency.rank(ascending=True)
+rfm_df['M_rank'] = rfm_df.monetary.rank(ascending=True)
+
+rfm_df['R_rank_norm'] = (rfm_df['R_rank']/rfm_df['R_rank'].max())*100
+rfm_df['F_rank_norm'] = (rfm_df['F_rank']/rfm_df['F_rank'].max())*100
+rfm_df['M_rank_norm'] = (rfm_df['F_rank']/rfm_df['M_rank'].max())*100
+
+rfm_df.drop(columns=['R_rank', 'F_rank', 'M_rank'], inplace=True)
+
+rfm_df['RFM_Score'] = 0.15*rfm_df['R_rank_norm']+0.28 * rfm_df['F_rank_norm']+0.57*rfm_df['M_rank_norm']
+rfm_df['RFM_Score'] *= 0.05
+rfm_df = rfm_df.round(2).sort_values(by='RFM_Score', ascending=False).reset_index()
+
+st.write("Top 10 Highest RFM Score")
+st.write(rfm_df[['customer_id', 'RFM_Score']].head(10))
