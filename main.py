@@ -7,6 +7,18 @@ import matplotlib.pyplot as plt
 
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
+def clean_data(df: pd.DataFrame):
+    return df.drop_duplicates()
+
+customers = clean_data(pd.read_csv("customers_dataset.csv"))
+sellers = clean_data(pd.read_csv("sellers_dataset.csv"))
+geolocate = clean_data(pd.read_csv("geolocation_dataset.csv"))
+order_items = clean_data(pd.read_csv("order_items_dataset.csv"))
+order_payments = clean_data(pd.read_csv("order_payments_dataset.csv"))
+orders = clean_data(pd.read_csv("orders_dataset.csv"))
+product_translation = clean_data(pd.read_csv(
+    "product_category_name_translation.csv"))
+products = clean_data(pd.read_csv("products_dataset.csv"))
 
 def getMostSoldItems(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(product_df, order_items_df, how='inner', on='product_id')
@@ -71,20 +83,6 @@ def getCorrelatBuyerSellerLocation(order_df: pd.DataFrame, order_items_df: pd.Da
     return df[['customer_state', 'seller_state']]
 
 
-def clean_data(df: pd.DataFrame):
-    return df.drop_duplicates()
-
-
-customers = clean_data(pd.read_csv("customers_dataset.csv"))
-sellers = clean_data(pd.read_csv("sellers_dataset.csv"))
-geolocate = clean_data(pd.read_csv("geolocation_dataset.csv"))
-order_items = clean_data(pd.read_csv("order_items_dataset.csv"))
-order_payments = clean_data(pd.read_csv("order_payments_dataset.csv"))
-orders = clean_data(pd.read_csv("orders_dataset.csv"))
-product_translation = clean_data(pd.read_csv(
-    "product_category_name_translation.csv"))
-products = clean_data(pd.read_csv("products_dataset.csv"))
-
 products = pd.merge(products, product_translation,
                     how='inner', on='product_category_name')
 products.drop(columns="product_category_name", inplace=True)
@@ -112,6 +110,31 @@ filtered_orders_items = pd.merge(
 ###########################################################################
 
 st.header("E-Commerce Report")
+
+###########################################################################
+
+st.subheader("Analisa Penjualan")
+col = st.columns(3, gap='medium')
+
+isThereAnyTransaction = True if getTotalOrder(
+    filtered_orders, False) > 0 else False
+
+with col[0]:
+    st.metric(label="Total Penjualan",
+              value=getTotalOrder(filtered_orders, False))
+    st.metric(label="Total Penjualan (Delivered Only)",
+              value=getTotalOrder(filtered_orders, True))
+
+with col[1]:
+    st.metric(label="Total Pendapatan", value=getTotalIncome(
+        filtered_orders, order_items, False))
+    st.metric(label="Total Pendapatan (Delivered Only)",
+              value=getTotalIncome(filtered_orders, order_items, True))
+
+with col[2]:
+    val = getAverageSoldItems(filtered_orders)
+    st.metric(label="Rata-Rata Barang Terjual Per-Hari",
+              value=(val))
 
 ###########################################################################
 
@@ -144,31 +167,6 @@ fig, ax = plt.subplots()
 data = getCorrelatProduct(products, order_items)['price']
 sn.scatterplot(x=data.keys(), y=data.values())
 st.pyplot(fig)
-
-###########################################################################
-
-st.subheader("Analisa Penjualan")
-col = st.columns(3, gap='medium')
-
-isThereAnyTransaction = True if getTotalOrder(
-    filtered_orders, False) > 0 else False
-
-with col[0]:
-    st.metric(label="Total Penjualan",
-              value=getTotalOrder(filtered_orders, False))
-    st.metric(label="Total Penjualan (Delivered Only)",
-              value=getTotalOrder(filtered_orders, True))
-
-with col[1]:
-    st.metric(label="Total Pendapatan", value=getTotalIncome(
-        filtered_orders, order_items, False))
-    st.metric(label="Total Pendapatan (Delivered Only)",
-              value=getTotalIncome(filtered_orders, order_items, True))
-
-with col[2]:
-    val = getAverageSoldItems(filtered_orders)
-    st.metric(label="Rata-Rata Barang Terjual Per-Hari",
-              value=(val))
 
 ###########################################################################
 
@@ -325,4 +323,4 @@ rfm_df = rfm_df.round(2).sort_values(
     by='RFM_Score', ascending=False).reset_index()
 
 st.write("Top 10 Highest RFM Score")
-st.write(rfm_df[['customer_id', 'RFM_Score']].head(10).transpose())
+st.write(rfm_df[['customer_id', 'RFM_Score']].head(10).transpose().w)
