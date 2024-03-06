@@ -15,12 +15,20 @@ def clean_data(df: pd.DataFrame):
 
 customers = clean_data(pd.read_csv("customers_dataset.csv"))
 sellers = clean_data(pd.read_csv("sellers_dataset.csv"))
-geolocate = clean_data(pd.read_csv("geolocation_dataset.csv"))
 order_items = clean_data(pd.read_csv("order_items_dataset.csv"))
 order_payments = clean_data(pd.read_csv("order_payments_dataset.csv"))
 orders = clean_data(pd.read_csv("orders_dataset.csv"))
 product_translation = clean_data(pd.read_csv("product_category_name_translation.csv"))
 products = clean_data(pd.read_csv("products_dataset.csv"))
+
+
+def Pearson_correlation(X, Y):
+    if len(X) == len(Y):
+        Sum_xy = sum((X - X.mean()) * (Y - Y.mean()))
+        Sum_x_squared = sum((X - X.mean()) ** 2)
+        Sum_y_squared = sum((Y - Y.mean()) ** 2)
+        corr = Sum_xy / np.sqrt(Sum_x_squared * Sum_y_squared)
+    return corr
 
 
 def getMostSoldItems(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
@@ -190,8 +198,6 @@ st.header("E-Commerce Report")
 st.subheader("Analisa Penjualan")
 col = st.columns(3, gap="medium")
 
-isThereAnyTransaction = True if getTotalOrder(filtered_orders, False) > 0 else False
-
 with col[0]:
     st.metric(label="Total Penjualan", value=getTotalOrder(filtered_orders, False))
     st.metric(
@@ -224,10 +230,11 @@ with col[0]:
     product_frequent = (
         products.groupby(by=["product_category_name"])
         .product_category_name.count()
+        .head(7)
         .to_dict()
     )
     product_frequent = dict(
-        sorted(product_frequent.items(), key=lambda x: x[1], reverse=True)[:7]
+        sorted(product_frequent.items(), key=lambda x: x[1], reverse=True)
     )
     plt.pie(
         x=product_frequent.values(),
@@ -258,6 +265,13 @@ st.write("Korelasi Berat Produk dengan Harga Produk")
 fig, ax = plt.subplots()
 data = getCorrelatProduct(products, order_items)
 sn.scatterplot(x=data["product_weight_g"].values(), y=data["price"].values())
+
+print(
+    Pearson_correlation(
+        np.array(list(data["product_weight_g"].values())),
+        np.array(list(data["price"].values())),
+    )
+)
 plt.xlabel("Berat Produk (gram)")
 plt.ylabel("Harga (USD)")
 st.pyplot(fig)
