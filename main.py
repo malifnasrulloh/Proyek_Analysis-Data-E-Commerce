@@ -1,4 +1,3 @@
-from networkx import attribute_mixing_matrix
 import pandas as pd
 import seaborn as sn
 import locale
@@ -50,17 +49,12 @@ def getMostPurchasesCountries(order_df:pd.DataFrame, customer_df:pd.DataFrame):
     df = pd.merge(order_df[order_df.order_status != 'canceled'], customer_df, how='inner', on='customer_id')
     return df.groupby(by=["customer_state"]).customer_state.count().sort_values(ascending=False)
 
-def getCorrelatBuyerSellerLocation(order_df:pd.DataFrame, order_items_df:pd.DataFrame, customer_df:pd.DataFrame,seller_df:pd.DataFrame, geolocate_df:pd.DataFrame):
-    df = pd.merge(order_df, customer_df, how='inner', on='customer_id')
-    df = pd.merge(df, geolocate_df, how='inner', left_on='customer_zip_code_prefix', right_on='geolocation_zip_code_prefix').rename(columns={"geolocation_lat":"cust_geolocation_lat","geolocation_lng":"cust_geolocation_lng"})
+def getCorrelatBuyerSellerLocation(order_df:pd.DataFrame, order_items_df:pd.DataFrame, customer_df:pd.DataFrame,seller_df:pd.DataFrame):
+    df = pd.merge(order_df, customer_df[['customer_state', 'customer_id']], how='inner', on="customer_id")
+    df = pd.merge(df, order_items_df[['order_id', 'seller_id']], how='inner', on='order_id')
+    df = pd.merge(df, seller_df[['seller_id','seller_state']], how='inner', on='seller_id')
 
-    df = pd.merge(df, order_items_df, how='inner',on='order_id')
-
-    df = pd.merge(df, seller_df, how='inner', on='seller_id')
-    df = pd.merge(df, geolocate_df, how='inner', left_on='seller_zip_code_prefix', right_on='geolocation_zip_code_prefix').rename(columns={"geolocation_lat":"seller_geolocation_lat","geolocation_lng":"seller_geolocation_lng"})
-
-    df['distance_geo'] = df[["cust_geolocation_lat","cust_geolocation_lng", "seller_geolocation_lat","seller_geolocation_lng"]].apply(lambda x: [x["cust_geolocation_lat"] - x["seller_geolocation_lat"], x["cust_geolocation_lng"] - x["seller_geolocation_lng"]], axis=1)
-    return df
+    return df[['customer_state', 'seller_state']]
 
 
 def clean_data(df: pd.DataFrame):
@@ -103,7 +97,7 @@ st.header("E-Commerce Report")
 st.subheader("Analisa Produk")
 col = st.columns(2, gap='medium')
 with col[0]:
-    st.text("Top 10 Frekuensi Product E-Commerce")
+    st.text("Top 10 Product E-Commerce Terbanyak")
 
     fig, ax = plt.subplots()
     product_frequent = products.groupby(by=["product_category_name"]).product_category_name.count().to_dict()
@@ -142,8 +136,10 @@ with col[2]:
     st.metric(label="Rata-Rata Barang Terjual Per-Hari", value=round(getAverageSoldItems(filtered_orders)))
 
 ###########################################################################
+
+st.subheader("Analisa Metode Pembayaran")
+
 with st.container():
-    st.subheader("Analisa Metode Pembayaran")
 
     payDistribute = getProductPaymentDistribute(products,order_items,order_payments).to_dict()
     method_payment = ['boleto', 'credit_card', 'debit_card', 'voucher']
@@ -197,12 +193,24 @@ st.subheader("Geolocate Analysis")
 
 st.write("Negara dengan Customer terbanyak")
 
-print(getCorrelatBuyerSellerLocation(filtered_orders, filtered_orders_items,customers, sellers, geolocate))
+data = getMostPurchasesCountries(filtered_orders, customers).to_dict()
 
+col = st.columns([2,1])
+with col[0]:
+    fig,ax = plt.subplots(nrows=1,ncols=1)
+    plt.scatter(data.keys(), data.values())
+    plt.xticks(rotation=90)
+    plt.xlabel("Negara")
+    plt.ylabel("Total Penbelian")
+    st.pyplot(fig)
+with col[1]:
+    for i in range(5):
+        st.metric(label=list(data.keys())[i], value=f"{list(data.values())[i]} Pembelian")
 
 
 st.write("Korelasi Tempat Tinggal Customer dan Tempat Penjual")
 
+print(getCorrelatBuyerSellerLocation(filtered_orders, filtered_orders_items,customers, sellers))
 
 
 ###########################################################################
@@ -222,11 +230,11 @@ rfm_df = createRFM(filtered_orders, filtered_orders_items)
 
 # rfm_df.drop(columns=['R_rank', 'F_rank', 'M_rank'], inplace=True)
 
-fig, ax = plt.subplots(nrows=1, ncols=1)
 
 col = st.columns(3, gap='large')
 
 with col[0]:
+    fig, ax = plt.subplots(nrows=1, ncols=1)
     avg_recency = round(rfm_df.recency.mean(),2)
     st.metric("Avg Ketepatan Waktu Pembelian", value=avg_recency)
     data = rfm_df.sort_values(by='recency').reset_index().head(10)
