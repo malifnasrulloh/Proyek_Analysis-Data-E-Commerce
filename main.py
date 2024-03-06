@@ -196,7 +196,7 @@ st.header("E-Commerce Report")
 ###########################################################################
 
 st.subheader("Analisa Penjualan")
-col = st.columns(3, gap="medium")
+col = st.columns([3, 3, 2], gap="medium")
 
 with col[0]:
     st.metric(label="Total Penjualan", value=getTotalOrder(filtered_orders, False))
@@ -217,7 +217,10 @@ with col[1]:
 
 with col[2]:
     val = getAverageSoldItems(filtered_orders)
-    st.metric(label="Rata-Rata Barang Terjual Per-Hari", value=(val))
+    st.metric(
+        label="Rata-Rata Barang Terjual Per-Hari",
+        value=round(val, 1) if isinstance(val, float) else 0,
+    )
 
 ###########################################################################
 
@@ -230,6 +233,7 @@ with col[0]:
     product_frequent = (
         products.groupby(by=["product_category_name"])
         .product_category_name.count()
+        .sort_values(ascending=False)
         .head(7)
         .to_dict()
     )
