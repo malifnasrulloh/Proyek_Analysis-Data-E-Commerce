@@ -10,7 +10,7 @@ locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 def getMostSoldItems(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(product_df, order_items_df, how='inner', on='product_id')
-    return df.groupby(by=['product_category_name']).product_category_name.count().sort_values().head(10)
+    return df.groupby(by=['product_category_name']).product_category_name.count().sort_values(ascending=False).head(10)
 
 
 def getTotalOrder(order_df: pd.DataFrame, deliveredOnly: bool):
@@ -44,8 +44,8 @@ def getCorrelatProduct(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
 def createRFM(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(order_df, order_items_df, how='inner', on='order_id')
     last_purchase = order_df.order_purchase_timestamp.max()
-    df = df.groupby('customer_id_x').agg({
-        'order_purchase_timestamp_x': lambda x: (last_purchase - x).max().days,
+    df = df.groupby('customer_id').agg({
+        'order_purchase_timestamp': lambda x: (last_purchase - x).max().days,
         'order_id': 'count',
         'price': 'sum'
     }).reset_index()
@@ -135,7 +135,7 @@ with col[1]:
 
     fig, ax = plt.subplots()
     mostSoldItem = getMostSoldItems(
-        product_df=products, order_items_df=filtered_orders_items).to_dict()
+        product_df=products, order_items_df=order_items).to_dict()
     plt.barh(y=list(mostSoldItem.keys()), width=list(mostSoldItem.values()))
     st.pyplot(fig)
 
@@ -149,6 +149,10 @@ st.pyplot(fig)
 
 st.subheader("Analisa Penjualan")
 col = st.columns(3, gap='medium')
+
+isThereAnyTransaction = True if getTotalOrder(
+    filtered_orders, False) > 0 else False
+
 with col[0]:
     st.metric(label="Total Penjualan",
               value=getTotalOrder(filtered_orders, False))
@@ -162,8 +166,9 @@ with col[1]:
               value=getTotalIncome(filtered_orders, order_items, True))
 
 with col[2]:
+    val = getAverageSoldItems(filtered_orders)
     st.metric(label="Rata-Rata Barang Terjual Per-Hari",
-              value=round(getAverageSoldItems(filtered_orders)))
+              value=(val))
 
 ###########################################################################
 
@@ -224,7 +229,7 @@ st.subheader("Geolocate Analysis")
 
 st.write("Negara dengan Customer terbanyak")
 
-data = getMostPurchasesCountries(filtered_orders, customers).to_dict()
+data = getMostPurchasesCountries(orders, customers).to_dict()
 
 col = st.columns([2, 1])
 with col[0]:
@@ -235,13 +240,12 @@ with col[0]:
     plt.ylabel("Total Pembelian")
     st.pyplot(fig)
 with col[1]:
-    for i in range(4):
+    for i in range(4 if len(data.keys()) >= 4 else len(data.keys())):
         st.metric(label=list(data.keys())[i],
                   value=f"{list(data.values())[i]}")
 
-
-st.write("Hubungan Tempat Tinggal Customer dan Tempat Penjual")
-data = getCorrelatBuyerSellerLocation(filtered_orders, filtered_orders_items, customers, sellers).groupby(
+st.write("Detail Tempat Tinggal Customer dan Tempat Penjual")
+data = getCorrelatBuyerSellerLocation(orders, order_items, customers, sellers).groupby(
     by=['seller_state']).value_counts().to_dict()
 temp = {}
 for k, v in data.items():
@@ -249,21 +253,22 @@ for k, v in data.items():
         temp[k[0]] = {}
     temp[k[0]][k[1]] = v
 seller_state_option = st.selectbox(label="Negara Penjual", options=temp.keys())
-with st.container():
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    plt.bar(x=temp[seller_state_option].keys(),
-            height=temp[seller_state_option].values())
-    ax.set_xlabel("Negara Pembeli")
-    ax.set_ylabel("Total Pembelian")
-    ax.set_title("Distribusi Negara Penjual dengan Negara Pembeli")
-    plt.xticks(rotation=60)
-    st.pyplot(fig)
+if (seller_state_option != None):
+    with st.container():
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+        plt.bar(x=temp[seller_state_option].keys(),
+                height=temp[seller_state_option].values())
+        ax.set_xlabel("Negara Pembeli")
+        ax.set_ylabel("Total Pembelian")
+        ax.set_title("Distribusi Negara Penjual dengan Negara Pembeli")
+        plt.xticks(rotation=60)
+        st.pyplot(fig)
 
 ###########################################################################
 
 st.subheader("RFM Analysis")
 
-rfm_df = createRFM(filtered_orders, filtered_orders_items)
+rfm_df = createRFM(orders, order_items)
 
 col = st.columns(3, gap='large')
 
