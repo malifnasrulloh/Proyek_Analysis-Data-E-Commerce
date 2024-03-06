@@ -253,7 +253,7 @@ with st.container():
     fig, ax = plt.subplots(nrows=1, ncols=1)
     plt.bar(x=temp[seller_state_option].keys(),
             height=temp[seller_state_option].values())
-    ax.set_xlabel("Negara")
+    ax.set_xlabel("Negara Pembeli")
     ax.set_ylabel("Total Pembelian")
     ax.set_title("Distribusi Negara Penjual dengan Negara Pembeli")
     plt.xticks(rotation=60)
