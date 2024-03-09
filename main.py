@@ -18,6 +18,7 @@ customers = clean_data(pd.read_csv("customers_dataset.csv"))
 sellers = clean_data(pd.read_csv("sellers_dataset.csv"))
 order_items = clean_data(pd.read_csv("order_items_dataset.csv"))
 order_payments = clean_data(pd.read_csv("order_payments_dataset.csv"))
+order_reviews = clean_data(pd.read_csv("order_reviews_dataset.csv"))
 orders = clean_data(pd.read_csv("orders_dataset.csv"))
 product_translation = clean_data(pd.read_csv("product_category_name_translation.csv"))
 products = clean_data(pd.read_csv("products_dataset.csv"))
@@ -30,6 +31,15 @@ def Pearson_correlation(X, Y):
         Sum_y_squared = sum((Y - Y.mean()) ** 2)
         corr = Sum_xy / np.sqrt(Sum_x_squared * Sum_y_squared)
     return corr
+
+
+def decode_dict(data: dict):
+    temp = {}
+    for k, v in data.items():
+        if k[0] not in temp.keys():
+            temp[k[0]] = {}
+        temp[k[0]][k[1]] = v
+    return temp
 
 
 def getMostSoldItems(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
@@ -89,7 +99,6 @@ def getCorrelatProduct(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
         .agg({"price": "mean"})
         .sort_values(by=["product_weight_g"], ascending=False)
         .reset_index()
-        .head(500)
         .to_dict()
     )
 
@@ -157,6 +166,67 @@ def getCorrelatBuyerSellerLocation(
     return df[["customer_state", "seller_state"]]
 
 
+def getProductReview(
+    products_df: pd.DataFrame,
+    order_items_df: pd.DataFrame,
+    order_reviews_df: pd.DataFrame,
+):
+    df = pd.merge(order_items_df, order_reviews_df, how="inner", on="order_id")
+    df = pd.merge(
+        df,
+        products_df[["product_id", "product_category_name"]],
+        how="inner",
+        on="product_id",
+    )
+
+    return df[["product_id", "review_score"]].groupby(by=["product_id"])
+
+
+def getCorrelatProductDescWithReview(
+    products_df: pd.DataFrame,
+    order_df: pd.DataFrame,
+    order_items_df: pd.DataFrame,
+    order_reviews_df: pd.DataFrame,
+):
+    df = pd.merge(
+        order_df[order_df.order_status == "delivered"],
+        order_items_df[["order_id", "product_id", "price"]],
+        how="inner",
+        on="order_id",
+    )
+    df = pd.merge(
+        df,
+        products_df[["product_id", "product_description_lenght"]],
+        how="inner",
+        on="product_id",
+    )
+    df = pd.merge(
+        df, order_reviews_df[["order_id", "review_score"]], how="inner", on="order_id"
+    )
+
+    return (
+        df[["product_id", "product_description_lenght", "review_score"]]
+        .groupby(by=["product_id"])
+        .agg({"review_score": "mean", "product_description_lenght": "mean"})
+        .sort_values(by=["product_description_lenght"], ascending=False)
+        .reset_index()
+    )
+
+
+def getSoldProduct(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
+    df = pd.merge(
+        order_df[order_df.order_status == "delivered"],
+        order_items_df,
+        how="inner",
+        on="order_id",
+    )
+    return (
+        df.groupby(by=["product_id"])
+        .order_id.count()
+        .rename({"order_id": "total_penjualan"})
+    )
+
+
 products = pd.merge(
     products, product_translation, how="inner", on="product_category_name"
 )
@@ -220,7 +290,7 @@ with col[2]:
     val = getAverageSoldItems(filtered_orders)
     st.metric(
         label="Rata-Rata Barang Terjual Per-Hari",
-        value= 0 if str(val) == 'nan' else round(val, 1),
+        value=0 if str(val) == "nan" else round(val, 1),
     )
 
 ###########################################################################
@@ -256,7 +326,7 @@ with col[0]:
     st.pyplot(fig)
 
 with col[1]:
-    st.write("Produk dengan Penjualan Terbanyak")
+    st.write("Kategori Produk dengan Penjualan Terbanyak")
 
     fig, ax = plt.subplots()
     mostSoldItem = getMostSoldItems(
@@ -271,15 +341,16 @@ fig, ax = plt.subplots()
 data = getCorrelatProduct(products, order_items)
 sn.scatterplot(x=data["product_weight_g"].values(), y=data["price"].values())
 
+plt.xlabel("Berat Produk (gram)")
+plt.ylabel("Harga (USD)")
+st.pyplot(fig)
+
 print(
     Pearson_correlation(
         np.array(list(data["product_weight_g"].values())),
         np.array(list(data["price"].values())),
     )
 )
-plt.xlabel("Berat Produk (gram)")
-plt.ylabel("Harga (USD)")
-st.pyplot(fig)
 
 ###########################################################################
 
@@ -353,6 +424,85 @@ with st.container():
 
 ###########################################################################
 
+st.subheader("Analisa Kualitas Produk")
+
+chooseProductCategory = st.selectbox(
+    label="Pilih kategori produk",
+    options=dict.fromkeys(products.product_category_name.sort_values()),
+)
+scoreReview = [i for i in range(1, 6)]
+
+st.code(f"Produk Best Seller dari Kategori {chooseProductCategory}")
+
+data = getProductReview(
+    products[products.product_category_name == chooseProductCategory],
+    order_items,
+    order_reviews,
+)
+qtySoldProduct = getSoldProduct(orders, order_items)
+
+produkReview = decode_dict(data.value_counts().to_dict())
+
+for k, v in produkReview.items():
+    for j in scoreReview:
+        if j not in v.keys():
+            produkReview[k][j] = 0
+
+data = pd.merge(
+    data.agg({"review_score": "count"}),
+    data.agg({"review_score": "mean"}),
+    how="inner",
+    on="product_id",
+)
+data.rename(
+    columns={"review_score_x": "total_penilaian", "review_score_y": "review_score"},
+    inplace=True,
+)
+data["review_list"] = produkReview.values()
+data.sort_values(by=["total_penilaian", "review_score"], ascending=False, inplace=True)
+
+col = st.columns(2)
+for i in range(len(col)):
+    with col[i]:
+        index = data.index.values[i]
+        st.write(f"Produk ID : {index}")
+        st.write(
+            f"{round(data.at[index,'review_score'],1)}:star: ({data.at[index,'total_penilaian']} Ulasan, {qtySoldProduct.loc[index]} Penjualan)"
+        )
+        inner_col = st.columns(5)
+        for j in range(len(inner_col)):
+            with inner_col[j]:
+                st.button(
+                    label=f"{j+1}:star: ({data.at[index, 'review_list'][j+1]})",
+                    disabled=True,
+                    key=np.random.random(),
+                )
+
+
+st.write("Korelasi Panjang Deskripsi Produk dengan Tingkat Kepuasan Pelanggan")
+
+data = getCorrelatProductDescWithReview(
+    products, orders, order_items, order_reviews
+).to_dict()
+fig, ax = plt.subplots()
+
+sn.scatterplot(
+    x=data["product_description_lenght"].values(), y=data["review_score"].values()
+)
+
+plt.xlabel("Panjang Deskripsi Produk (Letter)")
+plt.ylabel("Score Review (Mean)")
+st.pyplot(fig)
+
+print(
+    Pearson_correlation(
+        np.array(list(data["product_description_lenght"].values())),
+        np.array(list(data["review_score"].values())),
+    )
+)
+
+###########################################################################
+
 st.subheader("Geolocate Analysis")
 
 data = getMostSellestCountries(orders, order_items, sellers).to_dict()
@@ -365,11 +515,8 @@ data = (
     .value_counts()
     .to_dict()
 )
-temp = {}
-for k, v in data.items():
-    if k[0] not in temp.keys():
-        temp[k[0]] = {}
-    temp[k[0]][k[1]] = v
+
+temp = decode_dict(data)
 
 seller_state_option = st.selectbox(label="Negara Penjual", options=list_state)
 
