@@ -1,6 +1,6 @@
 # Proyek Analisis Data
 
-## Setup environment (Linux)
+## Setup environment
 _pakai virtual environment untuk menghindari package bentrok_
 
 ### Linux (Turunan Debian)
