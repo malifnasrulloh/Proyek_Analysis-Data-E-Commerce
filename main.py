@@ -23,7 +23,7 @@ orders = clean_data(pd.read_csv("orders_dataset.csv"))
 product_translation = clean_data(pd.read_csv("product_category_name_translation.csv"))
 products = clean_data(pd.read_csv("products_dataset.csv"))
 
-
+@st.cache_data
 def Pearson_correlation(X, Y):
     if len(X) == len(Y):
         Sum_xy = sum((X - X.mean()) * (Y - Y.mean()))
@@ -32,7 +32,7 @@ def Pearson_correlation(X, Y):
         corr = Sum_xy / np.sqrt(Sum_x_squared * Sum_y_squared)
     return corr
 
-
+@st.cache_data
 def decode_dict(data: dict):
     temp = {}
     for k, v in data.items():
@@ -41,7 +41,7 @@ def decode_dict(data: dict):
         temp[k[0]][k[1]] = v
     return temp
 
-
+@st.cache_data
 def getMostSoldItems(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(product_df, order_items_df, how="inner", on="product_id")
     return (
@@ -51,7 +51,7 @@ def getMostSoldItems(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
         .head(10)
     )
 
-
+@st.cache_data
 def getTotalOrder(order_df: pd.DataFrame, deliveredOnly: bool):
     return len(
         order_df
@@ -59,7 +59,7 @@ def getTotalOrder(order_df: pd.DataFrame, deliveredOnly: bool):
         else order_df[order_df.order_status == "delivered"]
     )
 
-
+@st.cache_data
 def getTotalIncome(
     order_df: pd.DataFrame, order_item_df: pd.DataFrame, deliveredOnly: bool
 ):
@@ -72,7 +72,7 @@ def getTotalIncome(
     df = pd.merge(order_df, order_item_df, how="inner", on="order_id")
     return locale.currency(df.price.sum(), grouping=True)
 
-
+@st.cache_data
 def getAverageSoldItems(order_df: pd.DataFrame):
     return (
         order_df.groupby(by=["order_purchase_timestamp"])
@@ -80,7 +80,7 @@ def getAverageSoldItems(order_df: pd.DataFrame):
         .mean()
     )
 
-
+@st.cache_data
 def getProductPaymentDistribute(
     product_df: pd.DataFrame,
     order_items_df: pd.DataFrame,
@@ -90,7 +90,7 @@ def getProductPaymentDistribute(
     df = pd.merge(df, order_payments_df, how="inner", on="order_id")
     return df.groupby(by=["product_category_name", "payment_type"]).payment_type.count()
 
-
+@st.cache_data
 def getCorrelatProduct(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(product_df, order_items_df, how="inner", on="product_id")
     # kategorikan berdasarkan berat produk dengan rata rata harga yang didapat (top 10 barang terberat)
@@ -102,7 +102,7 @@ def getCorrelatProduct(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
         .to_dict()
     )
 
-
+@st.cache_data
 def createRFM(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(order_df, order_items_df, how="inner", on="order_id")
     last_purchase = order_df.order_purchase_timestamp.max()
@@ -121,7 +121,7 @@ def createRFM(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df.customer_id = df.customer_id.apply(lambda x: x[:5])
     return df
 
-
+@st.cache_data
 def getMostSellestCountries(
     order_df: pd.DataFrame, order_items_df: pd.DataFrame, seller_df: pd.DataFrame
 ):
@@ -143,7 +143,7 @@ def getMostSellestCountries(
         .sort_values(ascending=False)
     )
 
-
+@st.cache_data
 def getCorrelatBuyerSellerLocation(
     order_df: pd.DataFrame,
     order_items_df: pd.DataFrame,
@@ -165,7 +165,7 @@ def getCorrelatBuyerSellerLocation(
 
     return df[["customer_state", "seller_state"]]
 
-
+@st.cache_data
 def getProductReview(
     products_df: pd.DataFrame,
     order_items_df: pd.DataFrame,
@@ -181,7 +181,7 @@ def getProductReview(
 
     return df[["product_id", "review_score"]].groupby(by=["product_id"])
 
-
+@st.cache_data
 def getCorrelatProductDescWithReview(
     products_df: pd.DataFrame,
     order_df: pd.DataFrame,
@@ -212,7 +212,7 @@ def getCorrelatProductDescWithReview(
         .reset_index()
     )
 
-
+@st.cache_data
 def getSoldProduct(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(
         order_df[order_df.order_status == "delivered"],
@@ -226,6 +226,7 @@ def getSoldProduct(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
         .rename({"order_id": "total_penjualan"})
     )
 
+#################################3#################################3#################################3
 
 products = pd.merge(
     products, product_translation, how="inner", on="product_category_name"
