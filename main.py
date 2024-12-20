@@ -1,6 +1,4 @@
-import math
 import pandas as pd
-import seaborn as sn
 import locale
 import streamlit as st
 import numpy as np
@@ -122,7 +120,6 @@ def getProductPaymentDistribute(
     )
 
     return result
-
 
 
 @st.cache_data
@@ -378,8 +375,8 @@ with col[1]:
         x="product_category_name",
         y="total_sold",
         x_label="Kategori Produk",
-        y_label='Total Terjual',
-        color="total_sold"
+        y_label="Total Terjual",
+        color="total_sold",
     )
 
 ###########################################################################
@@ -391,7 +388,16 @@ with st.container():
     payDistribute = getProductPaymentDistribute(
         products, order_items, order_payments, True, mostSoldItem
     )
-    st.bar_chart(payDistribute, x="product_category_name", y='total_used',color='payment_type', stack="normalize", horizontal=True, x_label="Total Digunakan", y_label="Kategori Produk")
+    st.bar_chart(
+        payDistribute,
+        x="product_category_name",
+        y="total_used",
+        color="payment_type",
+        stack="normalize",
+        horizontal=True,
+        x_label="Total Digunakan",
+        y_label="Kategori Produk",
+    )
 
 ###########################################################################
 
@@ -401,6 +407,7 @@ chooseProductCategory = st.selectbox(
     label="Pilih kategori produk",
     options=dict.fromkeys(products.product_category_name.sort_values()),
 )
+
 scoreReview = [i for i in range(1, 6)]
 
 st.code(f"Produk Best Seller dari Kategori {chooseProductCategory}")
@@ -410,6 +417,7 @@ data = getProductReview(
     order_items,
     order_reviews,
 )
+
 qtySoldProduct = getSoldProduct(orders, order_items)
 
 produkReview = decode_dict(data.value_counts().to_dict())
@@ -425,52 +433,35 @@ data = pd.merge(
     how="inner",
     on="product_id",
 )
+
 data.rename(
     columns={"review_score_x": "total_penilaian", "review_score_y": "review_score"},
     inplace=True,
 )
-data["review_list"] = produkReview.values()
-data.sort_values(by=["total_penilaian", "review_score"], ascending=False, inplace=True)
 
+data["review__score_list"] = produkReview.values()
+
+data.sort_values(by=["total_penilaian", "review_score"], ascending=False, inplace=True)
+print(data)
 col = st.columns(2)
 for i in range(len(col)):
     with col[i]:
-        index = data.index.values[i]
-        st.write(f"Produk ID : {index}")
+        product_id = data.index.values[i]
+        st.write(f"Produk ID :{product_id}")
         st.write(
-            f"{round(data.at[index,'review_score'],1)}:star: ({data.at[index,'total_penilaian']} Ulasan, {qtySoldProduct.loc[index]} Penjualan)"
+            f"{round(data.at[product_id,'review_score'],1)}:star: ({data.at[product_id,'total_penilaian']} Ulasan, {qtySoldProduct.loc[product_id]} Penjualan)"
         )
+
         inner_col = st.columns(5)
         for j in range(len(inner_col)):
             with inner_col[j]:
+                score = data.at[product_id, "review__score_list"][j + 1]
+
                 st.button(
-                    label=f"{j+1}:star: ({data.at[index, 'review_list'][j+1]})",
+                    label=f"{j+1}:star: ({score})",
                     disabled=True,
                     key=np.random.random(),
                 )
-
-
-st.write("Korelasi Panjang Deskripsi Produk dengan Tingkat Kepuasan Pelanggan")
-
-data = getCorrelatProductDescWithReview(
-    products, orders, order_items, order_reviews
-).to_dict()
-fig, ax = plt.subplots()
-
-sn.scatterplot(
-    x=data["product_description_lenght"].values(), y=data["review_score"].values()
-)
-
-plt.xlabel("Panjang Deskripsi Produk (Letter)")
-plt.ylabel("Score Review (Mean)")
-st.pyplot(fig)
-
-print(
-    Pearson_correlation(
-        np.array(list(data["product_description_lenght"].values())),
-        np.array(list(data["review_score"].values())),
-    )
-)
 
 ###########################################################################
 
