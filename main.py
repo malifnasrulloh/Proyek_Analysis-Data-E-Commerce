@@ -1,8 +1,10 @@
+import re
 import pandas as pd
 import locale
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+from requests import get
 
 
 locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
@@ -48,7 +50,6 @@ def getMostSoldItems(product_df: pd.DataFrame, order_items_df: pd.DataFrame, n=5
     df = pd.merge(product_df, order_items_df, how="inner", on="product_id")
 
     result = df["product_category_name"].value_counts()
-    print(result)
     return (
         pd.DataFrame(
             data={"product_category_name": result.index, "total_sold": result.values}
@@ -171,10 +172,14 @@ def getMostSellestCountries(
         how="inner",
         on="seller_id",
     )
-    return (
+    result = (
         df.groupby(by=["seller_state"])
         .seller_state.count()
         .sort_values(ascending=False)
+    )
+
+    return pd.DataFrame(
+        data={"seller_state": result.keys(), "total_sold": result.values}
     )
 
 
@@ -263,6 +268,16 @@ def getSoldProduct(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
         .order_id.count()
         .rename({"order_id": "total_penjualan"})
     )
+
+
+@st.cache_data
+def load_state_abbreviation():
+    state = pd.read_html(get("https://brazil-help.com/brazilian_states.htm").content)[2]
+    state.columns = state.iloc[1]
+    state = state.iloc[2:]
+    state = state[["Common Two Letter Abbreviation", "State"]]
+
+    return dict(state.values)
 
 
 #################################3#################################3#################################3
@@ -442,7 +457,7 @@ data.rename(
 data["review__score_list"] = produkReview.values()
 
 data.sort_values(by=["total_penilaian", "review_score"], ascending=False, inplace=True)
-print(data)
+
 col = st.columns(2)
 for i in range(len(col)):
     with col[i]:
@@ -467,33 +482,38 @@ for i in range(len(col)):
 
 st.subheader("Geolocate Analysis")
 
-data = getMostSellestCountries(orders, order_items, sellers).to_dict()
-list_state = [f"{k} ({v} Pembelian)" for k, v in data.items()]
+data = getMostSellestCountries(orders, order_items, sellers)
+state_abbreviation = load_state_abbreviation()
+
+data.replace(state_abbreviation, inplace=True)
+
+list_state = [f"{k} ({v} Pembelian)" for k, v in data.to_numpy()]
 
 st.write("Negara Bagian dengan Penjualan Produk Terbanyak")
+
 data = (
     getCorrelatBuyerSellerLocation(orders, order_items, customers, sellers)
     .groupby(by=["seller_state"])
     .value_counts()
-    .to_dict()
+    .reset_index(level=["seller_state", "customer_state"])
 )
 
-temp = decode_dict(data)
+data.replace(state_abbreviation, inplace=True)
 
 seller_state_option = st.selectbox(label="Negara Penjual", options=list_state)
 
 if seller_state_option != None:
     with st.container():
-        fig, ax = plt.subplots(nrows=1, ncols=1)
-        plt.bar(
-            x=temp[seller_state_option.split(" ")[0]].keys(),
-            height=temp[seller_state_option.split(" ")[0]].values(),
+        chosen_state = re.match(r"^(.+?) \(", seller_state_option).group(1)
+
+        st.bar_chart(
+            data[data.seller_state == chosen_state],
+            x="customer_state",
+            y="count",
+            x_label="Negara Pembeli",
+            y_label="Total Pembelian",
+            color="count",
         )
-        ax.set_xlabel("Negara Pembeli")
-        ax.set_ylabel("Total Pembelian")
-        ax.set_title("Distribusi Negara Penjual dengan Negara Pembeli")
-        plt.xticks(rotation=60)
-        st.pyplot(fig)
 
 ###########################################################################
 
@@ -506,35 +526,26 @@ col = st.columns(3, gap="large")
 with col[0]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
     avg_recency = round(rfm_df.recency.mean(), 2)
-    st.metric("Avg Ketepatan Waktu Pembelian", value=avg_recency)
     data = rfm_df.sort_values(by="recency").reset_index().head(10)
-    plt.bar(x=data.customer_id, height=data.recency)
-    ax.set_xlabel("Customer ID")
-    ax.set_ylabel("Recency")
-    ax.set_title("Recency Distribution")
-    st.pyplot(fig)
+    
+    st.metric("Avg Ketepatan Waktu Pembelian", value=avg_recency)
+    st.bar_chart(data, x='customer_id', y='recency', x_label="Customer ID", y_label='Recency', height=200)
 
 with col[1]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
     avg_frequency = round(rfm_df.frequency.mean(), 2)
-    st.metric("Avg Frekuensi Pembelian", value=avg_frequency)
     data = rfm_df.sort_values(by="frequency", ascending=False).reset_index().head(10)
-    plt.bar(x=data.customer_id, height=data.frequency)
-    ax.set_xlabel("Customer ID")
-    ax.set_ylabel("Frequency")
-    ax.set_title("Frequency Distribution")
-    st.pyplot(fig)
+    
+    st.metric("Avg Frekuensi Pembelian", value=avg_frequency)
+    st.bar_chart(data, x='customer_id', y='frequency', x_label="Customer ID", y_label='Frequency', height=200)
 
 with col[2]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
     avg_moneter = locale.currency(round(rfm_df.monetary.mean()), grouping=True)
-    st.metric("Avg Moneter Pembelian", value=avg_moneter)
     data = rfm_df.sort_values(by="monetary", ascending=False).reset_index().head(10)
-    plt.bar(x=data.customer_id, height=data.monetary)
-    ax.set_xlabel("Customer ID")
-    ax.set_ylabel("Monetary")
-    ax.set_title("Monetary Distribution")
-    st.pyplot(fig)
+    
+    st.metric("Avg Moneter Pembelian", value=avg_moneter)
+    st.bar_chart(data, x='customer_id', y='monetary', x_label="Customer ID", y_label='Monetary', height=200)
 
 # formula from gfg source
 rfm_df["R_rank"] = rfm_df.recency.rank(ascending=False)
