@@ -9,8 +9,9 @@ import matplotlib.pyplot as plt
 
 locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
 
+
 @st.cache_data
-def load_data(file_path: str):
+def load_data(file_path):
     return pd.read_csv(file_path)
 
 
@@ -23,6 +24,7 @@ orders = load_data("data/orders_dataset.csv")
 product_translation = load_data("data/product_category_name_translation.csv")
 products = load_data("data/products_dataset.csv")
 
+
 @st.cache_data
 def Pearson_correlation(X, Y):
     if len(X) == len(Y):
@@ -31,6 +33,7 @@ def Pearson_correlation(X, Y):
         Sum_y_squared = sum((Y - Y.mean()) ** 2)
         corr = Sum_xy / np.sqrt(Sum_x_squared * Sum_y_squared)
     return corr
+
 
 @st.cache_data
 def decode_dict(data: dict):
@@ -41,15 +44,21 @@ def decode_dict(data: dict):
         temp[k[0]][k[1]] = v
     return temp
 
+
 @st.cache_data
-def getMostSoldItems(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
+def getMostSoldItems(product_df: pd.DataFrame, order_items_df: pd.DataFrame, n=5):
     df = pd.merge(product_df, order_items_df, how="inner", on="product_id")
+
+    result = df["product_category_name"].value_counts()
+    print(result)
     return (
-        df.groupby(by=["product_category_name"])
-        .product_category_name.count()
-        .sort_values(ascending=False)
-        .head(10)
+        pd.DataFrame(
+            data={"product_category_name": result.index, "total_sold": result.values}
+        )
+        .sort_values(by="total_sold", ascending=False)
+        .head(n)
     )
+
 
 @st.cache_data
 def getTotalOrder(order_df: pd.DataFrame, deliveredOnly: bool):
@@ -58,6 +67,7 @@ def getTotalOrder(order_df: pd.DataFrame, deliveredOnly: bool):
         if deliveredOnly == False
         else order_df[order_df.order_status == "delivered"]
     )
+
 
 @st.cache_data
 def getTotalIncome(
@@ -72,6 +82,7 @@ def getTotalIncome(
     df = pd.merge(order_df, order_item_df, how="inner", on="order_id")
     return locale.currency(df.price.sum(), grouping=True)
 
+
 @st.cache_data
 def getAverageSoldItems(order_df: pd.DataFrame):
     return (
@@ -80,15 +91,39 @@ def getAverageSoldItems(order_df: pd.DataFrame):
         .mean()
     )
 
+
 @st.cache_data
 def getProductPaymentDistribute(
     product_df: pd.DataFrame,
     order_items_df: pd.DataFrame,
     order_payments_df: pd.DataFrame,
+    only_most_sold_item: bool = False,
+    most_sold_item: pd.DataFrame = None,
 ):
     df = pd.merge(product_df, order_items_df, how="inner", on="product_id")
-    df = pd.merge(df, order_payments_df, how="inner", on="order_id")
-    return df.groupby(by=["product_category_name", "payment_type"]).payment_type.count()
+    df = pd.merge(
+        df[["product_category_name", "order_id"]],
+        order_payments_df[["order_id", "payment_type"]],
+        how="inner",
+        on="order_id",
+    )
+
+    if only_most_sold_item:
+        df = df[df.product_category_name.isin(most_sold_item.product_category_name)]
+
+    df = df[["product_category_name", "payment_type"]].value_counts(sort=False)
+
+    result = pd.DataFrame(
+        data={
+            "product_category_name": df.index.map(lambda x: x[0]),
+            "payment_type": df.index.map(lambda x: x[1]),
+            "total_used": df.values,
+        }
+    )
+
+    return result
+
+
 
 @st.cache_data
 def getCorrelatProduct(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
@@ -101,6 +136,7 @@ def getCorrelatProduct(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
         .reset_index()
         .to_dict()
     )
+
 
 @st.cache_data
 def createRFM(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
@@ -120,6 +156,7 @@ def createRFM(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df.columns = ["customer_id", "recency", "frequency", "monetary"]
     df.customer_id = df.customer_id.apply(lambda x: x[:5])
     return df
+
 
 @st.cache_data
 def getMostSellestCountries(
@@ -143,6 +180,7 @@ def getMostSellestCountries(
         .sort_values(ascending=False)
     )
 
+
 @st.cache_data
 def getCorrelatBuyerSellerLocation(
     order_df: pd.DataFrame,
@@ -165,6 +203,7 @@ def getCorrelatBuyerSellerLocation(
 
     return df[["customer_state", "seller_state"]]
 
+
 @st.cache_data
 def getProductReview(
     products_df: pd.DataFrame,
@@ -180,6 +219,7 @@ def getProductReview(
     )
 
     return df[["product_id", "review_score"]].groupby(by=["product_id"])
+
 
 @st.cache_data
 def getCorrelatProductDescWithReview(
@@ -212,6 +252,7 @@ def getCorrelatProductDescWithReview(
         .reset_index()
     )
 
+
 @st.cache_data
 def getSoldProduct(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(
@@ -225,6 +266,7 @@ def getSoldProduct(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
         .order_id.count()
         .rename({"order_id": "total_penjualan"})
     )
+
 
 #################################3#################################3#################################3
 
@@ -330,28 +372,15 @@ with col[1]:
     st.write("Kategori Produk dengan Penjualan Terbanyak")
 
     fig, ax = plt.subplots()
-    mostSoldItem = getMostSoldItems(
-        product_df=products, order_items_df=order_items
-    ).to_dict()
-    plt.barh(y=list(mostSoldItem.keys()), width=list(mostSoldItem.values()))
-    plt.xlabel("Total Penjualan")
-    st.pyplot(fig)
-
-st.write("Korelasi Berat Produk dengan Harga Produk")
-fig, ax = plt.subplots()
-data = getCorrelatProduct(products, order_items)
-sn.scatterplot(x=data["product_weight_g"].values(), y=data["price"].values())
-
-plt.xlabel("Berat Produk (gram)")
-plt.ylabel("Harga (USD)")
-st.pyplot(fig)
-
-print(
-    Pearson_correlation(
-        np.array(list(data["product_weight_g"].values())),
-        np.array(list(data["price"].values())),
+    mostSoldItem = getMostSoldItems(product_df=products, order_items_df=order_items)
+    st.bar_chart(
+        mostSoldItem,
+        x="product_category_name",
+        y="total_sold",
+        x_label="Kategori Produk",
+        y_label='Total Terjual',
+        color="total_sold"
     )
-)
 
 ###########################################################################
 
@@ -360,68 +389,9 @@ st.subheader("Analisa Metode Pembayaran")
 with st.container():
 
     payDistribute = getProductPaymentDistribute(
-        products, order_items, order_payments
-    ).to_dict()
-    method_payment = ["boleto", "credit_card", "debit_card", "voucher"]
-
-    temp = {}
-    for k, v in payDistribute.items():
-        if k[0] in mostSoldItem.keys():
-            if k[0] not in temp.keys():
-                temp[k[0]] = {}
-            temp[k[0]][k[1]] = v
-
-    # fill another method with 0
-    for k, v in temp.items():
-        for i in method_payment:
-            if i not in v.keys():
-                temp[k][i] = 0
-
-    barWidth = 0.25
-    fig, ax = plt.subplots()
-
-    boleto = list(map(lambda x: x["boleto"], temp.values()))
-    credit_card = list(map(lambda x: x["credit_card"], temp.values()))
-    debit_card = list(map(lambda x: x["debit_card"], temp.values()))
-    voucher = list(map(lambda x: x["voucher"], temp.values()))
-
-    br1 = np.arange(len(boleto))
-    br2 = [x + barWidth for x in br1]
-    br3 = [x + barWidth for x in br2]
-    br4 = [x + barWidth for x in br3]
-
-    plt.barh(br1, boleto, color="r", height=barWidth, edgecolor="grey", label="Boleto")
-    plt.barh(
-        br2,
-        credit_card,
-        color="g",
-        height=barWidth,
-        edgecolor="grey",
-        label="Credit Card",
+        products, order_items, order_payments, True, mostSoldItem
     )
-    plt.barh(
-        br3,
-        debit_card,
-        color="b",
-        height=barWidth,
-        edgecolor="grey",
-        label="Debit Card",
-    )
-    plt.barh(
-        br4,
-        voucher,
-        color="hotpink",
-        height=barWidth,
-        edgecolor="grey",
-        label="Voucher",
-    )
-
-    plt.ylabel("Product Name")
-    plt.xlabel("Banyak Pemakaian")
-    plt.yticks([r + barWidth for r in range(len(boleto))], mostSoldItem.keys())
-    plt.legend()
-
-    st.pyplot(fig)
+    st.bar_chart(payDistribute, x="product_category_name", y='total_used',color='payment_type', stack="normalize", horizontal=True, x_label="Total Digunakan", y_label="Kategori Produk")
 
 ###########################################################################
 
