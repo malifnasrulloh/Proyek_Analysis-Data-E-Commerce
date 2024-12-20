@@ -9,19 +9,19 @@ import matplotlib.pyplot as plt
 
 locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
 
+@st.cache_data
+def load_data(file_path: str):
+    return pd.read_csv(file_path)
 
-def clean_data(df: pd.DataFrame):
-    return df.drop_duplicates()
 
-
-customers = clean_data(pd.read_csv("customers_dataset.csv"))
-sellers = clean_data(pd.read_csv("sellers_dataset.csv"))
-order_items = clean_data(pd.read_csv("order_items_dataset.csv"))
-order_payments = clean_data(pd.read_csv("order_payments_dataset.csv"))
-order_reviews = clean_data(pd.read_csv("order_reviews_dataset.csv"))
-orders = clean_data(pd.read_csv("orders_dataset.csv"))
-product_translation = clean_data(pd.read_csv("product_category_name_translation.csv"))
-products = clean_data(pd.read_csv("products_dataset.csv"))
+customers = load_data("data/customers_dataset.csv")
+sellers = load_data("data/sellers_dataset.csv")
+order_items = load_data("data/order_items_dataset.csv")
+order_payments = load_data("data/order_payments_dataset.csv")
+order_reviews = load_data("data/order_reviews_dataset.csv")
+orders = load_data("data/orders_dataset.csv")
+product_translation = load_data("data/product_category_name_translation.csv")
+products = load_data("data/products_dataset.csv")
 
 @st.cache_data
 def Pearson_correlation(X, Y):
