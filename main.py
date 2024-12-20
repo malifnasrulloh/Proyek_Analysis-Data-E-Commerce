@@ -527,25 +527,46 @@ with col[0]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
     avg_recency = round(rfm_df.recency.mean(), 2)
     data = rfm_df.sort_values(by="recency").reset_index().head(10)
-    
+
     st.metric("Avg Ketepatan Waktu Pembelian", value=avg_recency)
-    st.bar_chart(data, x='customer_id', y='recency', x_label="Customer ID", y_label='Recency', height=200)
+    st.bar_chart(
+        data,
+        x="customer_id",
+        y="recency",
+        x_label="Customer ID",
+        y_label="Recency",
+        height=200,
+    )
 
 with col[1]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
     avg_frequency = round(rfm_df.frequency.mean(), 2)
     data = rfm_df.sort_values(by="frequency", ascending=False).reset_index().head(10)
-    
+
     st.metric("Avg Frekuensi Pembelian", value=avg_frequency)
-    st.bar_chart(data, x='customer_id', y='frequency', x_label="Customer ID", y_label='Frequency', height=200)
+    st.bar_chart(
+        data,
+        x="customer_id",
+        y="frequency",
+        x_label="Customer ID",
+        y_label="Frequency",
+        height=200,
+    )
 
 with col[2]:
     fig, ax = plt.subplots(nrows=1, ncols=1)
     avg_moneter = locale.currency(round(rfm_df.monetary.mean()), grouping=True)
     data = rfm_df.sort_values(by="monetary", ascending=False).reset_index().head(10)
-    
+
     st.metric("Avg Moneter Pembelian", value=avg_moneter)
-    st.bar_chart(data, x='customer_id', y='monetary', x_label="Customer ID", y_label='Monetary', height=200)
+    st.bar_chart(
+        data,
+        x="customer_id",
+        y="monetary",
+        x_label="Customer ID",
+        y_label="Monetary",
+        height=200,
+    )
 
 # formula from gfg source
 rfm_df["R_rank"] = rfm_df.recency.rank(ascending=False)
@@ -567,4 +588,9 @@ rfm_df["RFM_Score"] *= 0.05
 rfm_df = rfm_df.round(2).sort_values(by="RFM_Score", ascending=False).reset_index()
 
 st.write("Top 10 Highest RFM Score")
-st.write(rfm_df[["customer_id", "RFM_Score"]].head(10).transpose())
+st.write(
+    rfm_df[["customer_id", "RFM_Score"]]
+    .head(10)
+    .apply({"customer_id": str, "RFM_Score": str})
+    .transpose()
+)
