@@ -3,3 +3,5 @@ seaborn
 streamlit
 numpy
 matplotlib
+html5lib
+lxml
