@@ -6,7 +6,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from requests import get
 
-
 locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
 
 
@@ -23,16 +22,6 @@ order_reviews = load_data("data/order_reviews_dataset.csv")
 orders = load_data("data/orders_dataset.csv")
 product_translation = load_data("data/product_category_name_translation.csv")
 products = load_data("data/products_dataset.csv")
-
-
-@st.cache_data
-def Pearson_correlation(X, Y):
-    if len(X) == len(Y):
-        Sum_xy = sum((X - X.mean()) * (Y - Y.mean()))
-        Sum_x_squared = sum((X - X.mean()) ** 2)
-        Sum_y_squared = sum((Y - Y.mean()) ** 2)
-        corr = Sum_xy / np.sqrt(Sum_x_squared * Sum_y_squared)
-    return corr
 
 
 @st.cache_data
@@ -124,19 +113,6 @@ def getProductPaymentDistribute(
 
 
 @st.cache_data
-def getCorrelatProduct(product_df: pd.DataFrame, order_items_df: pd.DataFrame):
-    df = pd.merge(product_df, order_items_df, how="inner", on="product_id")
-    # kategorikan berdasarkan berat produk dengan rata rata harga yang didapat (top 10 barang terberat)
-    return (
-        df.groupby(by=["product_weight_g"])
-        .agg({"price": "mean"})
-        .sort_values(by=["product_weight_g"], ascending=False)
-        .reset_index()
-        .to_dict()
-    )
-
-
-@st.cache_data
 def createRFM(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(order_df, order_items_df, how="inner", on="order_id")
     last_purchase = order_df.order_purchase_timestamp.max()
@@ -224,38 +200,6 @@ def getProductReview(
 
 
 @st.cache_data
-def getCorrelatProductDescWithReview(
-    products_df: pd.DataFrame,
-    order_df: pd.DataFrame,
-    order_items_df: pd.DataFrame,
-    order_reviews_df: pd.DataFrame,
-):
-    df = pd.merge(
-        order_df[order_df.order_status == "delivered"],
-        order_items_df[["order_id", "product_id", "price"]],
-        how="inner",
-        on="order_id",
-    )
-    df = pd.merge(
-        df,
-        products_df[["product_id", "product_description_lenght"]],
-        how="inner",
-        on="product_id",
-    )
-    df = pd.merge(
-        df, order_reviews_df[["order_id", "review_score"]], how="inner", on="order_id"
-    )
-
-    return (
-        df[["product_id", "product_description_lenght", "review_score"]]
-        .groupby(by=["product_id"])
-        .agg({"review_score": "mean", "product_description_lenght": "mean"})
-        .sort_values(by=["product_description_lenght"], ascending=False)
-        .reset_index()
-    )
-
-
-@st.cache_data
 def getSoldProduct(order_df: pd.DataFrame, order_items_df: pd.DataFrame):
     df = pd.merge(
         order_df[order_df.order_status == "delivered"],
@@ -296,53 +240,34 @@ for i in orders.columns.tolist()[3:]:
 first_date_order = orders.order_purchase_timestamp.min()
 last_date_order = orders.order_purchase_timestamp.max()
 
-with st.sidebar:
-    first_date, last_date = st.date_input(
-        label="Plese select date range",
-        value=[first_date_order, last_date_order],
-        max_value=last_date_order,
-        min_value=first_date_order,
-    )
-    search = st.text_input("Check Order ID")
-    with st.expander("Result: "):
-        st.write(orders.loc[search == orders.order_id])
+###########################################################################
 
-filtered_orders = orders[
-    (orders["order_purchase_timestamp"] >= str(first_date))
-    & (orders["order_purchase_timestamp"] <= str(last_date))
-]
-filtered_orders_items = pd.merge(
-    order_items, filtered_orders, how="inner", on="order_id"
-)
+st.header(f"E-Commerce Report ({first_date_order.strftime('%b %Y')} - {last_date_order.strftime('%b %Y')})")
 
 ###########################################################################
 
-st.header("E-Commerce Report")
-
-###########################################################################
-
-st.subheader("Analisa Penjualan")
+st.subheader(f"Analisa Penjualan")
 col = st.columns([3, 3, 2], gap="medium")
 
 with col[0]:
-    st.metric(label="Total Penjualan", value=getTotalOrder(filtered_orders, False))
+    st.metric(label="Total Penjualan", value=getTotalOrder(orders, False))
     st.metric(
         label="Total Penjualan (Delivered Only)",
-        value=getTotalOrder(filtered_orders, True),
+        value=getTotalOrder(orders, True),
     )
 
 with col[1]:
     st.metric(
         label="Total Pendapatan",
-        value=getTotalIncome(filtered_orders, order_items, False),
+        value=getTotalIncome(orders, order_items, False),
     )
     st.metric(
         label="Total Pendapatan (Delivered Only)",
-        value=getTotalIncome(filtered_orders, order_items, True),
+        value=getTotalIncome(orders, order_items, True),
     )
 
 with col[2]:
-    val = getAverageSoldItems(filtered_orders)
+    val = getAverageSoldItems(orders)
     st.metric(
         label="Rata-Rata Barang Terjual Per-Hari",
         value=0 if str(val) == "nan" else round(val, 1),
